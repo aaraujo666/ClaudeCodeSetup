@@ -1,0 +1,2 @@
+# Hooks and scripts run under bash; a CRLF checkout breaks them.
+* text=auto eol=lf
