@@ -15,3 +15,6 @@ __pycache__/
 *.bak*
 .env
 .env.*
+
+# Local GitLab tooling config (wiki sync, issue close); not part of the published repo
+.gitlab-tools.json
