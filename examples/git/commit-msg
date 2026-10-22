@@ -1,0 +1,83 @@
+#!/usr/bin/env sh
+# commit-msg: refuse two things that are invisible once they land.
+#
+# 1. AI co-author trailers and attribution footers (Co-Authored-By: Claude <noreply@anthropic.com>,
+#    "Generated with Claude Code"). Standing rule: no AI co-authoring attribution on any
+#    repo. A memory file only binds sessions that read it - this binds every session,
+#    and every hand-typed commit too.
+#
+# 2. Issue-closing keywords next to an issue reference. GitLab's default pattern is
+#    wider than people expect: `fixes`, `resolving` and `implementing` all auto-close on
+#    push, and `implementing #45` reads as ordinary prose. GitHub closes on
+#    close/fix/resolve and their tenses. The auto-close bypasses whatever close protocol
+#    you run (time log, terminal status label), which is exactly the half-done state
+#    that protocol exists to prevent. Write "re #N" instead.
+#
+# Install globally so it applies to every repo:
+#     mkdir -p ~/.githooks && cp commit-msg ~/.githooks/ && chmod +x ~/.githooks/commit-msg
+#     git config --global core.hooksPath ~/.githooks
+#
+# Override the closing-keyword check for a deliberate case:
+#     ALLOW_CLOSING_KEYWORD=1 git commit ...
+#
+# The closing-keyword check runs only where a remote will act on the keyword: it is
+# scoped to repos whose remote URL matches CLOSING_REMOTES (an extended regex). Set it
+# in your environment to add a self-hosted forge, e.g. CLOSING_REMOTES='gitlab|github|git\.example\.com'.
+
+CLOSING_REMOTES="${CLOSING_REMOTES:-gitlab|github}"
+
+MSG_FILE="$1"
+[ -f "$MSG_FILE" ] || exit 0
+
+# Drop git's comment lines before matching - the commit template mentions plenty
+# of things that are not part of the message.
+BODY=$(grep -v '^#' "$MSG_FILE")
+
+# --- 1. AI co-author trailer / footer: everywhere, no override ---------------
+# Anchored to a trailer line on purpose. A loose "claude" match would fire on every
+# legitimate commit that mentions a CLAUDE.md file.
+AI_TRAILER='^[[:space:]]*Co-Authored-By:.*(noreply@anthropic\.com|noreply@openai\.com|Claude|Copilot|ChatGPT|Codex|Gemini)'
+AI_FOOTER='^[[:space:]]*.{0,4}[[:space:]]*Generated with \[?Claude Code'
+if printf '%s\n' "$BODY" | grep -qiE "$AI_TRAILER|$AI_FOOTER"; then
+    OFFENDER=$(printf '%s\n' "$BODY" | grep -iE "$AI_TRAILER|$AI_FOOTER" | head -1)
+    cat >&2 <<EOF
+
+commit-msg: REFUSED - AI co-author trailer or attribution footer.
+
+    $OFFENDER
+
+Standing rule: no AI co-authoring attribution on any repo. Remove the
+line and commit again.
+
+EOF
+    exit 1
+fi
+
+# --- 2. Closing keywords: only where a remote will act on them ---------------
+if git remote -v 2>/dev/null | grep -qE "$CLOSING_REMOTES"; then
+    if [ -z "$ALLOW_CLOSING_KEYWORD" ]; then
+        HIT=$(printf '%s\n' "$BODY" | grep -nE \
+'(^|[^A-Za-z])([Cc]los(e[sd]?|ing)|[Ff]ix(e[sd]|ing)?|[Rr]esolv(e[sd]?|ing)|[Ii]mplement(s|ed|ing)?):? +#[0-9]+' \
+            | head -1)
+        if [ -n "$HIT" ]; then
+            cat >&2 <<EOF
+
+commit-msg: REFUSED - closing keyword next to an issue reference.
+
+    line $HIT
+
+GitLab auto-closes on push for close/closes/closed/closing, fix/fixes/fixed/
+fixing, resolve(s/d/ing) AND implement(s/ed/ing) - so "implementing #45" closes
+#45 as ordinary prose. GitHub does the same for close/fix/resolve. That bypasses
+your close protocol, leaving the issue with no logged time and a stale status label.
+
+Write "re #N" instead, and close the issue deliberately.
+Deliberate? Re-run with:  ALLOW_CLOSING_KEYWORD=1 git commit ...
+
+EOF
+            exit 1
+        fi
+    fi
+fi
+
+exit 0

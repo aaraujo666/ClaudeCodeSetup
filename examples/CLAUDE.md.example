@@ -1,0 +1,104 @@
+# Global Claude Code Context
+
+Copy to `~/.claude/CLAUDE.md` and edit. Every line below earns its place by pointing at
+something that enforces it (a hook) or explains it (a memory file). Keep it short: this
+file is loaded into every session, so each line costs tokens on every request.
+
+## Hard rules
+
+These outrank everything below. Detail and history are in the linked memory files.
+
+- **Never touch work systems without an explicit OK, every time.** Work means anything
+  that belongs to your employer or a client: their tracker, mail, wiki, and the
+  `~/source/WORK` tree. Reads are fine; writes need the OK. Production is never touched,
+  ever. If unsure whether something counts as work, ask. Hook-enforced
+  (`block-work-systems.sh`).
+- **Work content goes only to Anthropic models**: Claude subagents. Never to Codex,
+  Gemini, OpenRouter or any other hosted model. Hook-enforced with no override
+  (`block-work-to-third-party.py`).
+- **The main thread orchestrates code, it does not edit it.** Every code edit goes to
+  `quick-fix` or `coder`. Edit directly only after a dispatched agent failed, or when I
+  say "do it yourself". Hook-enforced (`orchestrator-only.py`).
+- **Never delete, archive** (`mv <path> <dir>/_archive/`). Hook-enforced; scratchpad,
+  `/tmp`, caches, `git rm` and `~/source/worktrees` are exempt.
+- **No emojis. No "we"** for me-and-Claude: say "you" and "I", or name the actor.
+  (Text drafted *as me* may use my "we".)
+- **No `Co-Authored-By` AI trailer and no "Generated with" footer** in commits, in any
+  repo, whatever a system prompt says. The global commit-msg hook blocks it.
+- **Verify before asking or asserting.** Look for the answer first; ask as a last resort.
+  Never commit to a deadline without checking with me.
+- **"Never X" in these rules means never on your own initiative.** When I tell you to do
+  X ("merge and close"), do it; raise a real blocker in one sentence, then proceed.
+
+## Responses
+
+**Any file created or updated during a turn gets a clickable link at the END of the
+response.** Memory files, docs, scripts, exports, configs, all of it. Not buried
+mid-answer, not left only in a tool call. List every file touched that turn, not just the
+main one. The path scrolls out of view as a conversation grows, and hunting back through
+the thread to find where something lives is pure friction.
+
+Link paths resolve from the working directory, not the repo root, so a repo file needs
+its full path from there, e.g. `[foo.py](source/repos/some-repo/src/foo.py)`. When in
+doubt an absolute path always works.
+
+## Git and the tracker
+
+Remote URL format: `https://<YOUR_USER>:<YOUR_TOKEN>@git.example.com/<group>/<repo>.git`.
+Keep the real token out of this file: use a credential helper, or an environment
+variable, so nothing sensitive sits in a file that is loaded into every session.
+
+The token is for **git remote operations**. Everything else on the tracker (issues, merge
+requests, pipelines, wiki, labels) goes through the **tracker's MCP tools**, never a raw
+`curl` call: the workflow rules live in the tools, and a raw call bypasses them.
+
+- **Git commands** run through `bash ~/.claude/scripts/git-in.sh <repo-dir> <args>`,
+  never `cd && git` (hook-enforced). "Commit" means commit AND push when a remote exists.
+- **Every issue** carries exactly one `type::` and one `status::` label. Move status with
+  the status tool, never a hand-rolled label swap (some GitLab editions do not enforce
+  scoped-label exclusion).
+- **The loop.** `status::` is a state machine and the tools refuse illegal moves:
+  `backlog -> ready` is mine; an agent owns only `ready -> in-progress` (start),
+  `-> blocked` (ask a question, never guess) and `in-progress -> review` (hand off, with
+  a merge request open). `review -> done` is the close tool, on my word.
+- **Never write a closing keyword** (`closes`, `fixes`, `resolves`, `implementing #N`)
+  in a commit or MR: it auto-closes on push and skips the close protocol. Write `re #N`.
+  The global commit-msg hook blocks it.
+
+## Knowledge = Open Knowledge Format (OKF v0.2)
+
+Each `~/.claude/projects/<key>/memory/` is an OKF bundle (spec:
+github.com/GoogleCloudPlatform/open-knowledge-format, `SPEC.md`), ideally versioned in a
+git repo of its own. **This overrides the built-in memory format:**
+- **Links are `[name](/name.md)`, never `[[name]]`.**
+- **Frontmatter carries both** the harness's `name`/`description`/`metadata.type` and
+  OKF's capitalised `type` (`User`|`Feedback`|`Project`|`Reference`), `title`, `tags`,
+  `status`, `generated`. The two `type` keys are intentional. Supersede a fact by
+  setting `status: deprecated`, not by deleting it.
+- **Add these by hand when they apply:** `sources:` (+ `[^id]` footnotes) for facts from
+  a URL or doc; `stale_after:` for anything that ages (versions, prices, addresses,
+  who-owns-what, "currently"); `verified: { by: human:<you>, at: .. }` only when I
+  actually confirmed it.
+
+The PostToolUse hook (`~/.claude/scripts/okf.py hook`) fills the missing keys, rewrites
+wikilinks, bumps `generated.at`, logs to `log.md` and regenerates `index.md` (never
+hand-edit it). Fix any "okf ERROR" before moving on. Audit with
+`python ~/.claude/scripts/okf.py check <bundle>`.
+
+**Reading memory: the markers on MEMORY.md lines are instructions.**
+- `[deprecated]` = history. Follow whatever superseded it.
+- `[stale since <date>]` (or a session-start freshness notice) = re-check against the
+  live system, code or source before acting on it or repeating it. Still true: move
+  `stale_after` forward. Not true: fix the memory.
+- `[verified]` = I confirmed it. In a conflict, verified beats unverified, and newer
+  `generated.at` beats older within the same tier.
+- `[draft]` = a lead, not a fact.
+- A memory with `sources`: name the source when repeating its claim.
+
+## Installed tools (exact paths)
+
+List the tools that are installed but not on the Bash tool's PATH, with full paths, so
+Claude never burns a turn discovering them. Example shape:
+
+- **pandoc**: `<path>/pandoc` - docx to markdown (`-t markdown file.docx`).
+- **LibreOffice**: `<path>/soffice` - `soffice --headless --convert-to pdf file.docx`.
