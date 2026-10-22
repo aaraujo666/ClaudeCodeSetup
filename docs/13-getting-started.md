@@ -106,4 +106,4 @@ If you want the one change with the highest return, read [Hooks](03-hooks.md) ag
 you want to see the whole loop in motion, read the [walkthrough](12-walkthrough.md). For
 terms, the [glossary](glossary.md).
 
-Next: [Glossary](glossary.md)
+Next: [14 Extras](14-extras.md)

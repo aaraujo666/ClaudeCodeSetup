@@ -64,6 +64,9 @@ from the registered tool metadata so it cannot drift from the signatures. The mo
 up what is available instead of guessing, and the server's `instructions` string tells it
 to call `help()` first.
 
+To see the pattern at scale, the full `help()` output of the tracker server is published
+in [EXTRAS/gitlab-mcp](../EXTRAS/gitlab-mcp/README.md); [doc 14](14-extras.md) explains it.
+
 Two traps:
 
 - **Check that every tool is in the catalogue** with a test that fails if a registered

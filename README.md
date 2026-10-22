@@ -68,6 +68,7 @@ flowchart TB
 | [11 Verification](docs/11-verification.md) | Verify, do not assert |
 | [12 Walkthrough](docs/12-walkthrough.md) | One fictional project, idea to closed issue, with the tool calls |
 | [13 Getting started](docs/13-getting-started.md) | How to adopt this incrementally |
+| [14 Extras](docs/14-extras.md) | Sanitized reference material from the real tools, starting with the full gitlab-mcp help output |
 | [Glossary](docs/glossary.md) | Terms used across the docs |
 
 Working files you can copy live in [examples/](examples/README.md): hooks with tests,
